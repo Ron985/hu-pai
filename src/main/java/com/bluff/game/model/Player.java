@@ -11,7 +11,8 @@ public class Player {
     private List<Card> handCards = new ArrayList<>();
     private boolean isReady = false;
     private boolean isHost = false;
-    private boolean online = true;
+    private boolean online = false;
+    private long lastSeen = System.currentTimeMillis();
     
     // 隐藏手牌详细内容，只返回张数给其他玩家
     public int getCardCount() {

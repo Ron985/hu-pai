@@ -31,10 +31,19 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         String userId = sessionToUser.get(session.getId());
         if (userId != null) {
-            handleUserLeave(userId);
-            sessions.remove(userId);
+            // 检查这是否是该用户的当前活跃 session
+            WebSocketSession activeSession = sessions.get(userId);
+            if (activeSession != null && activeSession.getId().equals(session.getId())) {
+                handleUserLeave(userId);
+                sessions.remove(userId);
+            }
             sessionToUser.remove(session.getId());
         }
+    }
+
+    public boolean isUserOnline(String userId) {
+        WebSocketSession session = sessions.get(userId);
+        return session != null && session.isOpen();
     }
 
     public void handleUserLeave(String userId) throws IOException {
@@ -135,6 +144,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         if (userId != null) {
             sessions.put(userId, session);
             sessionToUser.put(session.getId(), userId);
+            updatePlayerLastSeen(userId);
         }
 
         switch (type) {
@@ -148,13 +158,27 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    private void updatePlayerLastSeen(String userId) {
+        for (GameRoom room : roomManager.getAllRooms()) {
+            for (Player p : room.getPlayers()) {
+                if (p.getUserId().equals(userId)) {
+                    p.setLastSeen(System.currentTimeMillis());
+                    return;
+                }
+            }
+        }
+    }
+
     private void handleJoin(String roomId, String userId) throws IOException {
         GameRoom room = roomManager.getRoom(roomId);
         if (room != null) {
             room.getPlayers().stream()
                     .filter(p -> p.getUserId().equals(userId))
                     .findFirst()
-                    .ifPresent(p -> p.setOnline(true));
+                    .ifPresent(p -> {
+                        p.setOnline(true);
+                        p.setLastSeen(System.currentTimeMillis());
+                    });
             broadcast(room, "ROOM_UPDATE", room);
         }
     }
